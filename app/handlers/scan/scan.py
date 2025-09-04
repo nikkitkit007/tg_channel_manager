@@ -93,12 +93,6 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
             continue
 
         meta = parse_meta(entry / "meta.json")
-        desc_path = entry / "description.txt"
-        desc = (
-            desc_path.read_text("utf-8", errors="replace").strip()
-            if desc_path.exists()
-            else None
-        )
         images = collect_images(entry)
 
         # 1) Медиа-превью
@@ -106,7 +100,7 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
             context.application,
             tg_bot_settings.ADMIN_CHAT_ID,
             images,
-            caption_trim(desc or entry.name),
+            caption_trim(meta.get('title') or entry.name),
         )
 
         # 2) Карточка с метаданными и кнопками
@@ -125,7 +119,7 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         await context.application.bot.send_message(
             chat_id=tg_bot_settings.ADMIN_CHAT_ID,
-            text=build_preview_text(entry, meta, desc),
+            text=build_preview_text(entry, meta),
             parse_mode=ParseMode.HTML,
             reply_markup=keyboard,
             disable_web_page_preview=True,
@@ -190,12 +184,17 @@ def caption_trim(text: str | None) -> str:
 
 def build_preview_text(folder: Path, meta: dict[str, str], desc: str | None) -> str:
     lines = [f"📦 <b>{html_escape(folder.name)}</b>"]
+
     if meta:
         for k, v in meta.items():
-            lines.append(f"<b>{html_escape(k)}:</b> {html_escape(v)}")
+            if isinstance(v, list):
+                v = ", ".join(v)
+            lines.append(f"<b>{html_escape(k)}:</b> {html_escape(str(v))}")
+
     if desc:
         short = desc.strip()
         if len(short) > 500:
             short = short[:500] + "…"
         lines += ["", "<b>description.txt</b>:" + html_escape(short)]
-    return "".join(lines)
+
+    return "\n".join(lines)
