@@ -8,9 +8,10 @@ from schemas.enums import IMAGE_EXTS
 log = get_logger(__name__)
 
 
-def html_escape(s: str) -> str:
+def html_escape(s: str | list) -> str:
+    if isinstance(s, list):
+        s = ", ".join(map(str, s))
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
 
 def collect_images(folder: Path) -> list[Path]:
     imgs: list[Path] = []

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from core.utils import html_escape, collect_images
 from storages.publication import TOKENS, JOBS
 from config.settings import MAX_CAPTION, MEDIA_GROUP_LIMIT
@@ -88,9 +90,9 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
             continue
         lock = entry / ".lock"
         if lock.exists():
-            continue  # уже отправляли на утверждение
+            continue
 
-        meta = parse_meta(entry / "meta.txt")
+        meta = parse_meta(entry / "meta.json")
         desc_path = entry / "description.txt"
         desc = (
             desc_path.read_text("utf-8", errors="replace").strip()
@@ -137,25 +139,19 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 def is_post_folder(p: Path) -> bool:
-    return p.is_dir() and (p / "meta.txt").exists()
+    return p.is_dir() and (p / "meta.json").exists()
+
 
 
 def parse_meta(meta_path: Path) -> dict[str, str]:
     meta: dict[str, str] = {}
     try:
-        for line in meta_path.read_text("utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if ":" in line:
-                k, v = line.split(":", 1)
-            elif "=" in line:
-                k, v = line.split("=", 1)
-            else:
-                k, v = "info", line
-            meta[k.strip().lower()] = v.strip()
+        with meta_path.open("r", encoding="utf-8") as f:
+            meta = json.load(f)
+    except json.JSONDecodeError as e:
+        log.warning(f"Invalid JSON in meta.json at {meta_path}: {e}")
     except Exception as e:
-        log.warning("Failed to read meta at %s: %s", meta_path, e)
+        log.warning(f"Failed to read or parse meta.json at {meta_path}: {e}")
     return meta
 
 
