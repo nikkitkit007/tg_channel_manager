@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import tempfile
 from pathlib import Path
 
@@ -29,13 +31,13 @@ class LogSettings(BaseSettings):
 
 
 class TGBotSettings(BaseSettings):
-    BOT_TOKEN: str = None
-    ADMIN_CHAT_ID: int = None
-    CHANNEL_ID: str = None
-    POSTS_ROOT: str = None
-    SCAN_INTERVAL: int = None
+    BOT_TOKEN: str = ''
+    ADMIN_CHAT_ID: int = 0
+    CHANNEL_ID: str = ''
+    POSTS_ROOT: Path = Path()
+    SCAN_INTERVAL: int = 1
 
-    model_config = SettingsConfigDict(env_prefix="TGBOT", **file_args)
+    model_config = SettingsConfigDict(env_prefix="TGBOT_", **file_args)
 
 
 class Settings(BaseSettings):
@@ -47,3 +49,5 @@ class Settings(BaseSettings):
 
 
 settings = Settings(APP=AppSettings(), LOG=LogSettings(), TGBOT=TGBotSettings())
+MAX_CAPTION = 1024
+MEDIA_GROUP_LIMIT = 10

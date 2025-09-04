@@ -1,44 +1,30 @@
-
 from __future__ import annotations
 
 import re
 import shutil
-import uuid
 from pathlib import Path
 from app.config.settings import settings
 from telegram import (
     Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     InputMediaPhoto,
 )
-from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
-    ContextTypes,
+    ContextTypes, JobQueue,
 )
 
 from config.logger import get_logger
+from config.settings import MEDIA_GROUP_LIMIT
 from core.utils import collect_images
-from handlers.scan.scan import scan_command
+from handlers.scan.scan import scan_command, process_scan, caption_trim
 from handlers.start.start import start_command
-from schemas.enums import IMAGE_EXTS
+from storages.publication import TOKENS
 
 log = get_logger(__name__)
-MAX_CAPTION = 1024
-MEDIA_GROUP_LIMIT = 10
 
-TOKENS: dict[str, str] = {}
-
-# ---------- Helpers ----------
 tg_bot_settings = settings.TGBOT
-
-
-# ---------- Bot Handlers ----------
-
-
 
 
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -46,8 +32,10 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     cq = update.callback_query
 
-    # Только админ
-    if update.effective_user and update.effective_user.id != tg_bot_settings.ADMIN_CHAT_ID:
+    if (
+        update.effective_user
+        and update.effective_user.id != tg_bot_settings.ADMIN_CHAT_ID
+    ):
         await cq.answer("Недостаточно прав")
         return
 
@@ -78,21 +66,28 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await cq.edit_message_text("⏭️ Пропущено: " + folder.name)
         return
 
-    # approve
     await cq.answer("Публикую…")
 
     desc_path = folder / "description.txt"
-    desc = desc_path.read_text("utf-8", errors="replace").strip() if desc_path.exists() else None
+    desc = (
+        desc_path.read_text("utf-8", errors="replace").strip()
+        if desc_path.exists()
+        else None
+    )
     images = collect_images(folder)
 
     try:
-        await publish_to_channel(context.application, tg_bot_settings.CHANNEL_ID, images, caption_trim(desc or folder.name))
+        await publish_to_channel(
+            context.application,
+            tg_bot_settings.CHANNEL_ID,
+            images,
+            caption_trim(desc or folder.name),
+        )
     except Exception as e:
         log.exception("Publish failed: %s", e)
         await cq.edit_message_text(f"❌ Ошибка публикации: {e}")
         return
 
-    # Удаляем папку поста
     try:
         shutil.rmtree(folder)
     except Exception as e:
@@ -104,7 +99,9 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     TOKENS.pop(token, None)
 
 
-async def publish_to_channel(app: Application, channel: int | str, images: list[Path], caption: str) -> None:
+async def publish_to_channel(
+    app: Application, channel: int | str, images: list[Path], caption: str
+) -> None:
     if images:
         first = True
         for i in range(0, len(images), MEDIA_GROUP_LIMIT):
@@ -127,7 +124,6 @@ async def publish_to_channel(app: Application, channel: int | str, images: list[
         await app.bot.send_message(chat_id=channel, text=caption or "")
 
 
-# ---------- App bootstrap ----------
 
 async def _periodic_scan(app: Application) -> None:
     async def job(ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -136,17 +132,26 @@ async def _periodic_scan(app: Application) -> None:
         except Exception:
             log.exception("Periodic scan failed")
 
-    app.job_queue.run_repeating(job, interval=tg_bot_settings.SCAN_INTERVAL, first=3)
+    if not app.job_queue:
+        app.job_queue = JobQueue(app.bot, update_queue=app.update_queue)
 
+    app.job_queue.run_repeating(job, interval=tg_bot_settings.SCAN_INTERVAL, first=3)
 
 async def _post_init(app: Application) -> None:
     await _periodic_scan(app)
-    log.info("Bot started. Watching %s every %ss", tg_bot_settings.POSTS_ROOT, tg_bot_settings.SCAN_INTERVAL)
-
+    log.info(
+        "Bot started. Watching %s every %ss",
+        tg_bot_settings.POSTS_ROOT,
+        tg_bot_settings.SCAN_INTERVAL,
+    )
 
 def main() -> None:
-    if not tg_bot_settings.POSTS_ROOT.exists() or not tg_bot_settings.POSTS_ROOT.is_dir():
-        raise SystemExit(f"POSTS_ROOT not a directory: {tg_bot_settings.POSTS_ROOT}")
+    if not tg_bot_settings.POSTS_ROOT.exists():
+        log.info(f"Папка {tg_bot_settings.POSTS_ROOT} не существует. Создаю...")
+        tg_bot_settings.POSTS_ROOT.mkdir(parents=True, exist_ok=True)
+
+    elif not tg_bot_settings.POSTS_ROOT.is_dir():
+        raise SystemExit(f"POSTS_ROOT {tg_bot_settings.POSTS_ROOT} не является директорией.")
 
     application = (
         Application.builder()
@@ -160,7 +165,6 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(on_callback))
 
     application.run_polling(close_loop=False)
-
 
 if __name__ == "__main__":
     main()

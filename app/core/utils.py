@@ -5,7 +5,7 @@ from pathlib import Path
 from schemas.enums import IMAGE_EXTS
 
 
-def _html_escape(s: str) -> str:
+def html_escape(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
