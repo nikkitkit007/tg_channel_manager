@@ -12,13 +12,18 @@ from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
-    ContextTypes, JobQueue,
+    ContextTypes,
 )
 
 from config.logger import get_logger
 from config.settings import MEDIA_GROUP_LIMIT
-from core.utils import collect_images
-from handlers.scan.scan import scan_command, process_scan, caption_trim
+from core.utils import collect_images, create_path_if_not_exists
+from handlers.scan.scan import (
+    scan_command,
+    caption_trim,
+    stop_scan_command,
+    start_scan_command,
+)
 from handlers.start.start import start_command
 from storages.publication import TOKENS
 
@@ -124,34 +129,15 @@ async def publish_to_channel(
         await app.bot.send_message(chat_id=channel, text=caption or "")
 
 
-
-async def _periodic_scan(app: Application) -> None:
-    async def job(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-        try:
-            await process_scan(ctx)
-        except Exception:
-            log.exception("Periodic scan failed")
-
-    if not app.job_queue:
-        app.job_queue = JobQueue(app.bot, update_queue=app.update_queue)
-
-    app.job_queue.run_repeating(job, interval=tg_bot_settings.SCAN_INTERVAL, first=3)
-
 async def _post_init(app: Application) -> None:
-    await _periodic_scan(app)
+    # await periodic_scan(app)
     log.info(
-        "Bot started. Watching %s every %ss",
-        tg_bot_settings.POSTS_ROOT,
-        tg_bot_settings.SCAN_INTERVAL,
+        f"Bot started. Watching {tg_bot_settings.POSTS_ROOT} every {tg_bot_settings.SCAN_INTERVAL}"
     )
 
-def main() -> None:
-    if not tg_bot_settings.POSTS_ROOT.exists():
-        log.info(f"Папка {tg_bot_settings.POSTS_ROOT} не существует. Создаю...")
-        tg_bot_settings.POSTS_ROOT.mkdir(parents=True, exist_ok=True)
 
-    elif not tg_bot_settings.POSTS_ROOT.is_dir():
-        raise SystemExit(f"POSTS_ROOT {tg_bot_settings.POSTS_ROOT} не является директорией.")
+def main() -> None:
+    create_path_if_not_exists(tg_bot_settings.POSTS_ROOT)
 
     application = (
         Application.builder()
@@ -162,9 +148,12 @@ def main() -> None:
 
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("scan", scan_command))
+    application.add_handler(CommandHandler("start_scan", start_scan_command))
+    application.add_handler(CommandHandler("stop_scan", stop_scan_command))
     application.add_handler(CallbackQueryHandler(on_callback))
 
     application.run_polling(close_loop=False)
+
 
 if __name__ == "__main__":
     main()

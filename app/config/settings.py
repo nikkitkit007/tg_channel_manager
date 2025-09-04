@@ -31,9 +31,9 @@ class LogSettings(BaseSettings):
 
 
 class TGBotSettings(BaseSettings):
-    BOT_TOKEN: str = ''
+    BOT_TOKEN: str = ""
     ADMIN_CHAT_ID: int = 0
-    CHANNEL_ID: str = ''
+    CHANNEL_ID: str = ""
     POSTS_ROOT: Path = Path()
     SCAN_INTERVAL: int = 1
 

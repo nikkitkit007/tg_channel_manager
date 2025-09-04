@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from core.utils import html_escape, collect_images
-from storages.publication import TOKENS
+from storages.publication import TOKENS, JOBS
 from config.settings import MAX_CAPTION, MEDIA_GROUP_LIMIT
 
 import uuid
@@ -26,6 +26,28 @@ log = get_logger(__name__)
 tg_bot_settings = settings.TGBOT
 
 
+async def start_scan_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    task_id = str(uuid.uuid4())  # Генерируем уникальный ID для задачи
+    await periodic_scan(context.application, task_id)
+    await update.message.reply_text(f"Сканирование запущено с ID {task_id}")
+
+
+async def periodic_scan(app: Application, task_id: str) -> None:
+    async def job_fn(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        try:
+            await process_scan(ctx)
+        except Exception:
+            log.exception("Periodic scan failed")
+
+    # Запускаем задачу и сохраняем в jobs
+    job = app.job_queue.run_repeating(
+        job_fn, interval=tg_bot_settings.SCAN_INTERVAL, first=3
+    )
+    JOBS[task_id] = job
+
+
 async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if (
         update.effective_user
@@ -33,6 +55,29 @@ async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     ):
         return
     await process_scan(context)
+
+
+async def stop_scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    task_id = context.args[0] if context.args else None
+    if task_id and task_id in JOBS:
+        job = JOBS.pop(task_id)
+        job.schedule_removal()
+
+        if update.message:
+            await update.message.reply_text(f"Сканирование с ID {task_id} остановлено.")
+        elif update.callback_query:
+            await update.callback_query.message.reply_text(
+                f"Сканирование с ID {task_id} остановлено."
+            )
+    else:
+        if update.message:
+            await update.message.reply_text(
+                "Задача с таким ID не найдена или не запущена."
+            )
+        elif update.callback_query:
+            await update.callback_query.message.reply_text(
+                "Задача с таким ID не найдена или не запущена."
+            )
 
 
 async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
