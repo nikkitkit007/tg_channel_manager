@@ -51,11 +51,6 @@ async def periodic_scan(app: Application, task_id: str) -> None:
 
 
 async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if (
-        update.effective_user
-        and update.effective_user.id != tg_bot_settings.ADMIN_CHAT_ID
-    ):
-        return
     await process_scan(context)
 
 
@@ -100,7 +95,7 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
             context.application,
             tg_bot_settings.ADMIN_CHAT_ID,
             images,
-            caption_trim(meta.get('title') or entry.name),
+            caption_trim(meta.get("title") or entry.name),
         )
 
         # 2) Карточка с метаданными и кнопками
@@ -119,7 +114,7 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         await context.application.bot.send_message(
             chat_id=tg_bot_settings.ADMIN_CHAT_ID,
-            text=build_preview_text(entry, meta),
+            text=build_preview_text(entry, meta, desc=None),
             parse_mode=ParseMode.HTML,
             reply_markup=keyboard,
             disable_web_page_preview=True,
@@ -134,7 +129,6 @@ async def process_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def is_post_folder(p: Path) -> bool:
     return p.is_dir() and (p / "meta.json").exists()
-
 
 
 def parse_meta(meta_path: Path) -> dict[str, str]:

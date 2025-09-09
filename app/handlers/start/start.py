@@ -19,14 +19,6 @@ tg_bot_settings = settings.TGBOT
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if (
-        update.effective_user
-        and update.effective_user.id != tg_bot_settings.ADMIN_CHAT_ID
-    ):
-        await update.effective_chat.send_message(
-            "Этот бот — приватный. Доступ только у администратора."
-        )
-        return
     await update.effective_chat.send_message(
         "Привет! Я слежу за папкой и отправляю посты на утверждение."
         "Команды:• /scan — проверить папку сейчас"

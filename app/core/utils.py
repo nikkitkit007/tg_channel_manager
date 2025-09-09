@@ -13,6 +13,7 @@ def html_escape(s: str | list) -> str:
         s = ", ".join(map(str, s))
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+
 def collect_images(folder: Path) -> list[Path]:
     imgs: list[Path] = []
     for f in sorted(folder.iterdir(), key=lambda x: x.name.lower()):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import zoneinfo
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +19,7 @@ NOT_SET = "NOT SET"
 class AppSettings(BaseSettings):
     NAME: str = "offers-refinement"
     VERSION: str = "0.1.0"
+    TIMEZONE: str = "Europe/Moscow"
 
     model_config = SettingsConfigDict(env_prefix="APP_", **file_args)
 
@@ -49,5 +51,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings(APP=AppSettings(), LOG=LogSettings(), TGBOT=TGBotSettings())
+
+TZ = zoneinfo.ZoneInfo(settings.APP.TIMEZONE)
 MAX_CAPTION = 1024
 MEDIA_GROUP_LIMIT = 10
